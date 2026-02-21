@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kaos Arena: Online Edition</title>
+    <title>Kaos Arena: Online Chaos Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -18,24 +18,40 @@
         }
 
         * { box-sizing: border-box; }
+
         body {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             min-height: 100vh; margin: 0; background: radial-gradient(circle at center, #1a1a2e 0%, #0a0a0c 100%);
             color: #e0e0e0; font-family: 'Rajdhani', sans-serif; overflow: hidden;
         }
 
+        h1, h2, h3 { font-family: 'Orbitron', sans-serif; text-transform: uppercase; letter-spacing: 4px; margin: 0 0 20px 0; }
+
         .overlay {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 550px; background: rgba(15, 15, 20, 0.95); backdrop-filter: blur(20px);
             padding: 40px; border-radius: 20px; border: 1px solid var(--glass-border);
             box-shadow: 0 25px 50px rgba(0,0,0,0.8); text-align: center; z-index: 1000;
-            display: none;
+            display: none; animation: fadeIn 0.4s ease-out;
         }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -45%); } to { opacity: 1; transform: translate(-50%, -50%); } }
 
         .cyber-input {
             width: 100%; padding: 12px 20px; margin: 10px 0;
             background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
-            border-radius: 8px; color: white; font-family: 'Rajdhani', sans-serif;
+            border-radius: 8px; color: white; font-family: 'Rajdhani', sans-serif; font-size: 1.1rem;
+        }
+
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+
+        .config-item { background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px; border: 1px solid var(--glass-border); }
+
+        .config-label { display: block; font-family: 'Orbitron', sans-serif; font-size: 0.7rem; color: var(--accent); margin-bottom: 5px; }
+
+        select.cyber-dropdown {
+            width: 100%; background: #111; border: 1px solid var(--accent); color: var(--accent);
+            padding: 5px; font-family: 'Orbitron', sans-serif; cursor: pointer;
         }
 
         .btn {
@@ -46,35 +62,121 @@
         .btn:hover { transform: translateY(-3px); box-shadow: 0 0 20px var(--accent); }
         .btn-sec { background: transparent; color: white; border: 1px solid var(--glass-border); }
 
-        #game-container { display: flex; align-items: flex-start; gap: 20px; }
-        canvas { background-color: #050505; border: 2px solid var(--glass-border); border-radius: 12px; display: none; }
-        
-        .status-msg { color: var(--accent); font-family: 'Orbitron'; margin: 10px; font-size: 0.8rem; }
-        #peer-id-display { color: white; background: #222; padding: 5px; border-radius: 4px; user-select: all; }
+        .stats-container {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 900px; margin-bottom: 15px; visibility: hidden;
+            background: var(--glass); padding: 15px 30px; border-radius: 15px; border: 1px solid var(--glass-border);
+        }
+
+        #timer { font-size: 3rem; font-family: 'Orbitron'; color: var(--accent); text-shadow: 0 0 15px var(--accent); }
+
+        #game-container { display: flex; align-items: flex-start; justify-content: center; gap: 20px; width: 100%; }
+
+        .effect-panel {
+            display: none; width: 200px; background: rgba(10, 10, 12, 0.8);
+            padding: 15px; border-radius: 12px; border: 2px solid var(--glass-border); min-height: 250px;
+        }
+
+        .effect-timer { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; }
+
+        canvas { background-color: #050505; border: 2px solid var(--glass-border); display: none; border-radius: 12px; }
+
+        .key-box {
+            background: #222; padding: 5px 10px; border-radius: 4px; color: var(--accent);
+            cursor: pointer; border: 1px solid #444; display: inline-block; min-width: 60px;
+        }
+
+        #online-panel { margin-top: 20px; padding: 15px; background: rgba(204, 255, 0, 0.05); border-radius: 10px; border: 1px dashed var(--accent); }
     </style>
 </head>
 <body>
 
     <div id="login-screen" class="overlay" style="display:block">
-        <h1 style="color: var(--accent);">KAOS ARENA ONLINE</h1>
-        <input type="text" id="nickname" class="cyber-input" placeholder="Pilot İsmi">
+        <h1 style="color: var(--accent); font-size: 2.5rem;">KAOS ARENA ONLINE</h1>
+        <p style="color: #888;">PeerJS Multiplayer Edition</p>
         
-        <div style="border: 1px solid var(--glass-border); padding: 15px; border-radius: 10px; margin-top: 10px;">
-            <button class="btn" onclick="startHost()">ODA KUR (HOST)</button>
-            <p id="host-id-area" style="display:none">ID'niz: <span id="peer-id-display">Bekleniyor...</span></p>
+        <input type="text" id="input-nickname" class="cyber-input" placeholder="Pilot İsmi">
+        
+        <div class="config-grid">
+            <div class="config-item">
+                <span class="config-label">SAVAŞ SÜRESİ</span>
+                <select id="game-duration" class="cyber-dropdown">
+                    <option value="60" selected>60 Saniye</option>
+                    <option value="120">120 Saniye</option>
+                </select>
+            </div>
+            <div class="config-item">
+                <span class="config-label">ARENA TİPİ</span>
+                <select id="arena-size" class="cyber-dropdown">
+                    <option value="medium" selected>STANDART</option>
+                    <option value="large">GENİŞ</option>
+                </select>
+            </div>
         </div>
 
-        <div style="border: 1px solid var(--glass-border); padding: 15px; border-radius: 10px; margin-top: 10px;">
-            <input type="text" id="join-id" class="cyber-input" placeholder="Katılmak istediğin ID">
-            <button class="btn btn-sec" onclick="startJoin()">ODAYA KATIL</button>
+        <div id="online-panel">
+            <button class="btn" onclick="hostGame()">ODA KUR (HOST)</button>
+            <div id="host-id-display" style="margin: 10px 0; font-weight: bold; color: var(--accent); display:none;">
+                ODA ID: <span id="my-id" style="color:white; user-select:all;">...</span>
+            </div>
+            <hr style="border:0; border-top:1px solid var(--glass-border); margin:15px 0;">
+            <input type="text" id="join-id" class="cyber-input" placeholder="Katılınacak Oda ID" style="width: 70%;">
+            <button class="btn btn-sec" onclick="joinGame()">KATIL</button>
         </div>
-        <p id="conn-status" class="status-msg"></p>
+        
+        <p id="status-text" style="color: var(--accent); margin-top:10px; font-size:0.8rem;"></p>
     </div>
 
-    <div id="game-ui" style="display:none">
-        <div id="timer" style="font-family: 'Orbitron'; font-size: 2rem; color: var(--accent); text-align: center;">60</div>
-        <div id="game-container">
-            <canvas id="arenaCanvas"></canvas>
+    <div id="settings-screen" class="overlay">
+        <h2>TUŞ AYARLARI</h2>
+        <div style="display: flex; justify-content: space-around; margin: 20px 0;">
+            <div id="p1-keys">
+                <h4 style="color:var(--p1-color)">TUŞLARINIZ</h4>
+                UP: <div class="key-box" onclick="listenKey('p1','up', this)">W</div><br>
+                DOWN: <div class="key-box" onclick="listenKey('p1','down', this)">S</div><br>
+                LEFT: <div class="key-box" onclick="listenKey('p1','left', this)">A</div><br>
+                RIGHT: <div class="key-box" onclick="listenKey('p1','right', this)">D</div><br>
+                SHOOT: <div class="key-box" onclick="listenKey('p1','shoot', this)">Space</div>
+            </div>
+        </div>
+        <button class="btn" onclick="toggleScreen('settings-screen', false)">KAYDET</button>
+    </div>
+
+    <div id="start-screen" class="overlay">
+        <h2 id="match-title" style="color: var(--accent);"></h2>
+        <p>Bağlantı Başarılı! Her iki oyuncu da hazır olduğunda başlar.</p>
+        <button class="btn" id="start-btn" onclick="requestStart()" disabled>HAZIR OL!</button>
+    </div>
+
+    <div id="end-screen" class="overlay">
+        <h2 id="winner-text" style="font-size: 2.5rem;"></h2>
+        <div id="final-stats" style="margin: 20px 0; font-size: 1.3rem;"></div>
+        <button class="btn" onclick="location.reload()">YENİDEN BAĞLAN</button>
+    </div>
+
+    <div class="stats-container" id="hud">
+        <div style="color: var(--p1-color)">
+            <h3 id="hud-p1-name">P1</h3>
+            <div id="p1-hp-bar" style="font-size: 1.5rem;"></div>
+            <div id="p1-score-val" style="font-size: 2rem;">0</div>
+        </div>
+        <div id="timer">00</div>
+        <div style="color: var(--p2-color); text-align: right;">
+            <h3 id="hud-p2-name">P2</h3>
+            <div id="p2-hp-bar" style="font-size: 1.5rem;"></div>
+            <div id="p2-score-val" style="font-size: 2rem;">0</div>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div id="p1-effects" class="effect-panel" style="border-color: var(--p1-color); display:block;">
+            <h3 style="color: var(--p1-color);">P1 STATUS</h3>
+            <div id="p1-effect-list"></div>
+        </div>
+        <canvas id="arenaCanvas"></canvas>
+        <div id="p2-effects" class="effect-panel" style="border-color: var(--p2-color); display:block;">
+            <h3 style="color: var(--p2-color);">P2 STATUS</h3>
+            <div id="p2-effect-list"></div>
         </div>
     </div>
 
@@ -82,45 +184,49 @@
         const canvas = document.getElementById('arenaCanvas');
         const ctx = canvas.getContext('2d');
         const gridSize = 25;
-        let rows = 20, cols = 30;
-        canvas.width = cols * gridSize;
-        canvas.height = rows * gridSize;
-
-        let peer, conn;
-        let isHost = false;
-        let gameActive = false;
-        let grid = Array(rows).fill().map(() => Array(cols).fill(0));
-        let walls = [], items = [], bullets = [];
+        
+        let rows, cols, grid, walls = [], items = [], bullets = [];
+        let gameActive = false, timeLeft = 60;
         const keys = {};
 
-        let p1 = { id: 1, name: "P1", color: '#ff0055', x: 2, y: 10, score: 0, hp: 3, dir: {x:1, y:0}, lastMove: 0, shield: false, effects: { stun: 0, ice: 0, star: 0, ghost: 0, nitro: 0, invisible: 0 } };
-        let p2 = { id: 2, name: "P2", color: '#00d4ff', x: 27, y: 10, score: 0, hp: 3, dir: {x:-1, y:0}, lastMove: 0, shield: false, effects: { stun: 0, ice: 0, star: 0, ghost: 0, nitro: 0, invisible: 0 } };
+        // PeerJS Değişkenleri
+        let peer, conn;
+        let isHost = false;
+        let myRole = ""; // "p1" veya "p2"
+        let controls = { p1: { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', shoot: 'Space' } };
 
-        // PEERJS MODÜLLERİ
-        function startHost() {
+        let p1 = { id: 1, name: "P1", color: '#ff0055', x: 0, y: 0, score: 0, hp: 3, dir: {x:1, y:0}, lastMove: 0, shield: false, effects: { stun: 0, ice: 0, star: 0, ghost: 0, nitro: 0, invisible: 0 } };
+        let p2 = { id: 2, name: "P2", color: '#00d4ff', x: 0, y: 0, score: 0, hp: 3, dir: {x:-1, y:0}, lastMove: 0, shield: false, effects: { stun: 0, ice: 0, star: 0, ghost: 0, nitro: 0, invisible: 0 } };
+
+        // ONLINE MODÜLLER
+        function hostGame() {
             isHost = true;
-            p1.name = document.getElementById('nickname').value || "Host";
+            myRole = "p1";
             peer = new Peer();
-            peer.on('open', id => {
-                document.getElementById('host-id-area').style.display = 'block';
-                document.getElementById('peer-id-display').innerText = id;
-                document.getElementById('conn-status').innerText = "Bağlantı bekleniyor...";
+            document.getElementById('status-text').innerText = "PeerID oluşturuluyor...";
+            
+            peer.on('open', (id) => {
+                document.getElementById('my-id').innerText = id;
+                document.getElementById('host-id-display').style.display = 'block';
+                document.getElementById('status-text').innerText = "Oda açıldı. Arkadaşını bekle.";
             });
-            peer.on('connection', c => {
-                conn = c;
+
+            peer.on('connection', (connection) => {
+                conn = connection;
                 setupConnection();
             });
         }
 
-        function startJoin() {
-            isHost = false;
-            p2.name = document.getElementById('nickname').value || "Guest";
-            const targetId = document.getElementById('join-id').value;
-            if(!targetId) return alert("ID girin!");
+        function joinGame() {
+            const hostId = document.getElementById('join-id').value;
+            if(!hostId) return alert("ID girmelisin!");
             
+            isHost = false;
+            myRole = "p2";
             peer = new Peer();
+            
             peer.on('open', () => {
-                conn = peer.connect(targetId);
+                conn = peer.connect(hostId);
                 setupConnection();
             });
         }
@@ -128,170 +234,274 @@
         function setupConnection() {
             conn.on('open', () => {
                 document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('game-ui').style.display = 'block';
-                canvas.style.display = 'block';
+                document.getElementById('start-screen').style.display = 'block';
+                document.getElementById('start-btn').disabled = false;
                 
-                if(isHost) {
-                    generateWalls();
-                    spawnItemLoop();
-                    gameActive = true;
-                    requestAnimationFrame(gameLoop);
+                // İlk Ayarlar
+                const name = document.getElementById('input-nickname').value || (isHost ? "HOST" : "GUEST");
+                if(isHost) p1.name = name; else p2.name = name;
+                
+                conn.send({ type: 'init_name', name: name });
+            });
+
+            conn.on('data', (data) => {
+                if(data.type === 'init_name') {
+                    if(isHost) p2.name = data.name; else p1.name = data.name;
+                    document.getElementById('match-title').innerText = p1.name + " VS " + p2.name;
                 }
-                
-                conn.on('data', data => {
-                    if(isHost) {
-                        // Host, Guest'ten gelen tuşları/hareketleri alır
-                        p2.x = data.p2.x; p2.y = data.p2.y;
-                        p2.dir = data.p2.dir;
-                        if(data.shoot) shoot(p2);
-                    } else {
-                        // Guest, Host'tan gelen tüm dünyayı alır
-                        grid = data.grid;
-                        p1 = data.p1;
-                        p2 = data.p2;
-                        walls = data.walls;
-                        items = data.items;
-                        bullets = data.bullets;
-                        if(!gameActive) { gameActive = true; requestAnimationFrame(draw); }
+                if(data.type === 'start_request') {
+                    initGameLogic();
+                }
+                if(data.type === 'input') {
+                    // Host, Guest'ten gelen tuşları işler
+                    if(isHost) handleGuestInput(data.keys, data.shoot);
+                }
+                if(data.type === 'sync') {
+                    // Guest, Host'tan gelen dünya verisini alır
+                    if(!isHost) {
+                        grid = data.grid; p1 = data.p1; p2 = data.p2;
+                        walls = data.walls; items = data.items; bullets = data.bullets;
+                        timeLeft = data.timeLeft;
+                        updateUI();
+                        draw();
                     }
-                });
+                }
             });
         }
 
-        // OYUN MANTIĞI
-        function generateWalls() {
-            for(let i=0; i < 40; i++) {
-                walls.push({x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows)});
+        function requestStart() {
+            if(isHost) initGameLogic();
+            else conn.send({ type: 'start_request' });
+        }
+
+        // OYUN MANTIĞI (Host Tarafında Çalışır)
+        function initGameLogic() {
+            const arenaType = document.getElementById('arena-size').value;
+            if(arenaType === 'small') { canvas.width = 500; canvas.height = 400; }
+            else if(arenaType === 'large') { canvas.width = 1100; canvas.height = 650; }
+            else { canvas.width = 850; canvas.height = 550; }
+
+            cols = canvas.width / gridSize;
+            rows = canvas.height / gridSize;
+            grid = Array(rows).fill().map(() => Array(cols).fill(0));
+
+            p1.x = 2; p1.y = Math.floor(rows/2);
+            p2.x = cols-3; p2.y = Math.floor(rows/2);
+            timeLeft = parseInt(document.getElementById('game-duration').value);
+
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('hud').style.visibility = 'visible';
+            canvas.style.display = 'block';
+            
+            if(isHost) {
+                generateWalls();
+                gameActive = true;
+                spawnItemLoop();
+                startTimer();
+                requestAnimationFrame(mainLoop);
             }
         }
 
-        function gameLoop() {
+        function mainLoop() {
             if(!gameActive) return;
             update();
             draw();
-            // Host her karede veriyi Guest'e gönderir
-            conn.send({ grid, p1, p2, walls, items, bullets });
-            requestAnimationFrame(gameLoop);
+            // Tüm veriyi Guest'e gönder (Sync)
+            conn.send({
+                type: 'sync',
+                grid, p1, p2, walls, items, bullets, timeLeft
+            });
+            requestAnimationFrame(mainLoop);
         }
 
         function update() {
             const now = Date.now();
             [p1, p2].forEach(p => {
-                // Sadece Host her iki oyuncunun mantığını hesaplar veya Guest kendi verisini gönderir
-                const isLocal = (isHost && p.id === 1) || (!isHost && p.id === 2);
-                if(!isLocal) return;
-
                 if(p.effects.stun > now) return;
+                
+                // Hareket Kontrolü (Sadece Host p1'i ve p2'nin son verisini işler)
+                let moveBaseSpeed = 110;
+                if(p.effects.ice > now) moveBaseSpeed *= 2; 
+                if(p.effects.nitro > now) moveBaseSpeed /= 2; 
 
-                let speed = 110;
-                if(p.effects.nitro > now) speed = 60;
-                if(p.effects.ice > now) speed = 200;
-
-                if(now - p.lastMove > speed) {
+                if(now - p.lastMove > moveBaseSpeed) {
                     let dx = 0, dy = 0;
-                    if(isHost) {
-                        if(keys['KeyW']) dy = -1; else if(keys['KeyS']) dy = 1;
-                        if(keys['KeyA']) dx = -1; else if(keys['KeyD']) dx = 1;
+                    
+                    // Kendi tuşlarımız (Host için P1, Guest için verisi Host'a gider)
+                    if(p.id === 1) {
+                        if(keys[controls.p1.up]) dy = -1; else if(keys[controls.p1.down]) dy = 1;
+                        if(keys[controls.p1.left]) dx = -1; else if(keys[controls.p1.right]) dx = 1;
                     } else {
-                        if(keys['ArrowUp'] || keys['KeyW']) dy = -1; else if(keys['ArrowDown'] || keys['KeyS']) dy = 1;
-                        if(keys['ArrowLeft'] || keys['KeyA']) dx = -1; else if(keys['ArrowRight'] || keys['KeyD']) dx = 1;
+                        // P2'nin hareketi guest'ten gelen guest_dx/dy ile belirlenir
+                        dx = p.targetDx || 0; dy = p.targetDy || 0;
                     }
 
                     if(dx !== 0 || dy !== 0) {
                         p.dir = {x: dx, y: dy};
                         let nx = p.x + dx, ny = p.y + dy;
-                        // Çarpışma ve Sınır Kontrolü
-                        if(nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
-                            p.x = nx; p.y = ny;
-                            if(isHost) grid[ny][nx] = p.id;
-                            p.lastMove = now;
+                        const isWall = walls.some(w => w.x === nx && w.y === ny);
+                        const isOut = (nx < 0 || nx >= cols || ny < 0 || ny >= rows);
+
+                        if((isWall && p.effects.ghost < now) || isOut) {
+                            p.effects.stun = now + 1500;
+                            return;
                         }
-                        if(!isHost) conn.send({ p2: p }); // Guest konumunu bildirir
+                        p.x = nx; p.y = ny;
+                        if(p.effects.star > now) {
+                            for(let i=-1; i<=1; i++) for(let j=-1; j<=1; j++) {
+                                if(p.y+i >= 0 && p.y+i < rows && p.x+j >= 0 && p.x+j < cols) grid[p.y+i][p.x+j] = p.id;
+                            }
+                        } else grid[p.y][p.x] = p.id;
+
+                        items.forEach((it, idx) => { if(it.x === p.x && it.y === p.y) { applyPowerup(p, it.type); items.splice(idx, 1); }});
+                        p.lastMove = now;
                     }
                 }
             });
 
-            if(isHost) {
-                // Mermi hareketleri sadece Host'ta hesaplanır
-                bullets.forEach((b, idx) => {
-                    b.x += b.vx; b.y += b.vy;
-                    if(b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(idx, 1);
-                });
+            bullets.forEach((b, idx) => {
+                b.x += b.vx; b.y += b.vy;
+                const target = b.owner === 1 ? p2 : p1;
+                const dist = Math.hypot(b.x - (target.x*gridSize+12), b.y - (target.y*gridSize+12));
+                if(dist < 15) { hitPlayer(target); bullets.splice(idx, 1); }
+                else if(b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(idx, 1);
+            });
+            updateUI();
+        }
+
+        // Guest girişini Host'a aktarma
+        function handleGuestInput(gKeys, shoot) {
+            p2.targetDx = 0; p2.targetDy = 0;
+            if(gKeys[controls.p1.up]) p2.targetDy = -1; else if(gKeys[controls.p1.down]) p2.targetDy = 1;
+            if(gKeys[controls.p1.left]) p2.targetDx = -1; else if(gKeys[controls.p1.right]) p2.targetDx = 1;
+            if(shoot) shootBullet(p2);
+        }
+
+        // YARDIMCI FONKSİYONLAR (Orijinal Koddan Alındı)
+        function generateWalls() {
+            const wallCount = Math.floor((cols * rows) * 0.08);
+            for(let i=0; i < wallCount; i++) {
+                let wx = Math.floor(Math.random()*(cols-4))+2;
+                let wy = Math.floor(Math.random()*(rows-4))+2;
+                walls.push({x: wx, y: wy});
             }
+        }
+
+        function shootBullet(p) {
+            bullets.push({ x: p.x*gridSize+12, y: p.y*gridSize+12, vx: p.dir.x * 12, vy: p.dir.y * 12, owner: p.id });
+        }
+
+        function applyPowerup(p, type) {
+            const now = Date.now();
+            if(type === 'star') p.effects.star = now + 4000;
+            if(type === 'ice') (p.id === 1 ? p2 : p1).effects.ice = now + 3000;
+            if(type === 'ghost') p.effects.ghost = now + 5000;
+            if(type === 'shield') p.shield = true;
+            if(type === 'bomb') hitPlayer(p);
+            if(type === 'nitro') p.effects.nitro = now + 4000;
+            if(type === 'heal') if(p.hp < 3) p.hp++;
+            if(type === 'invisible') p.effects.invisible = now + 5000;
+        }
+
+        function hitPlayer(p) {
+            if(p.shield) { p.shield = false; return; }
+            p.hp--; p.effects.stun = Date.now() + 2000;
+            if(p.hp <= 0) setTimeout(() => p.hp = 3, 2000);
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const now = Date.now();
-
-            // Grid
             grid.forEach((row, y) => row.forEach((cell, x) => {
                 if(cell !== 0) {
-                    ctx.fillStyle = cell === 1 ? p1.color : p2.color;
-                    ctx.globalAlpha = 0.2;
-                    ctx.fillRect(x*gridSize, y*gridSize, gridSize-1, gridSize-1);
+                    const owner = cell === 1 ? p1 : p2;
+                    if(owner.effects.invisible < now) {
+                        ctx.fillStyle = cell === 1 ? p1.color : p2.color;
+                        ctx.globalAlpha = 0.25; ctx.fillRect(x*gridSize, y*gridSize, gridSize-1, gridSize-1);
+                    }
                 }
             }));
-
-            // Duvarlar
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = "#444";
-            walls.forEach(w => ctx.fillRect(w.x*gridSize, w.y*gridSize, gridSize-2, gridSize-2));
-
-            // Itemlar
+            ctx.globalAlpha = 1.0; ctx.fillStyle = "#333";
+            walls.forEach(w => ctx.fillRect(w.x*gridSize+2, w.y*gridSize+2, gridSize-4, gridSize-4));
             items.forEach(it => {
-                ctx.fillText(getItemIcon(it.type), it.x*gridSize+5, it.y*gridSize+18);
+                ctx.font = "20px Arial";
+                let icons = {star:"🌟", ice:"❄️", ghost:"👻", shield:"🛡️", bomb:"💣", nitro:"⚡", heal:"🔧", invisible:"👤"};
+                ctx.fillText(icons[it.type] || "❓", it.x*gridSize+3, it.y*gridSize+20);
             });
-
-            // Mermiler
-            ctx.fillStyle = "white";
-            bullets.forEach(b => {
-                ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
-            });
-
-            // Oyuncular
+            bullets.forEach(b => { ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill(); });
             [p1, p2].forEach(p => {
-                if(p.effects.invisible > now) return; // GÖRÜNMEZLİK
-                ctx.fillStyle = p.color;
-                if(p.effects.stun > now) ctx.fillStyle = "white";
-                ctx.fillRect(p.x*gridSize+2, p.y*gridSize+2, gridSize-4, gridSize-4);
+                if(p.effects.invisible < now) {
+                    ctx.save(); ctx.fillStyle = p.effects.stun > now ? "white" : p.color;
+                    if(p.effects.ghost > now) ctx.globalAlpha = 0.5;
+                    if(p.effects.star > now) { ctx.shadowBlur = 15; ctx.shadowColor = "gold"; }
+                    ctx.fillRect(p.x*gridSize+2, p.y*gridSize+2, gridSize-4, gridSize-4); ctx.restore();
+                }
             });
-
-            if(!isHost) requestAnimationFrame(draw);
         }
 
-        function getItemIcon(type) {
-            const icons = { star: "🌟", ice: "❄️", ghost: "👻", shield: "🛡️", nitro: "⚡", invisible: "👤" };
-            return icons[type] || "❓";
+        function updateUI() {
+            const now = Date.now();
+            let s1 = 0, s2 = 0;
+            grid.forEach(row => row.forEach(cell => { if(cell === 1) s1++; if(cell === 2) s2++; }));
+            document.getElementById('p1-score-val').innerText = s1;
+            document.getElementById('p2-score-val').innerText = s2;
+            document.getElementById('p1-hp-bar').innerText = "⚡".repeat(p1.hp) + (p1.shield ? "🛡️" : "");
+            document.getElementById('p2-hp-bar').innerText = "⚡".repeat(p2.hp) + (p2.shield ? "🛡️" : "");
+            document.getElementById('timer').innerText = timeLeft;
+            
+            const getEff = (p) => {
+                let h = "";
+                if(p.effects.star > now) h += `<div class="effect-timer" style="color:gold"><span>🌟 MEGA</span></div>`;
+                if(p.effects.invisible > now) h += `<div class="effect-timer" style="color:#a040ff"><span>👤 GİZLİ</span></div>`;
+                if(p.effects.stun > now) h += `<div class="effect-timer" style="color:orange"><span>⚠️ FELÇ</span></div>`;
+                return h || "<p>TEMİZ</p>";
+            };
+            document.getElementById('p1-effect-list').innerHTML = getEff(p1);
+            document.getElementById('p2-effect-list').innerHTML = getEff(p2);
         }
 
         function spawnItemLoop() {
-            if(!isHost || !gameActive) return;
-            const types = ['star', 'ice', 'ghost', 'shield', 'nitro', 'invisible'];
-            items.push({
-                x: Math.floor(Math.random()*cols),
-                y: Math.floor(Math.random()*rows),
-                type: types[Math.floor(Math.random()*types.length)]
-            });
-            setTimeout(spawnItemLoop, 5000);
+            if(!gameActive) return;
+            const types = ['star', 'ice', 'ghost', 'shield', 'bomb', 'nitro', 'heal', 'invisible'];
+            items.push({x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows), type: types[Math.floor(Math.random()*types.length)]});
+            setTimeout(spawnItemLoop, 3000);
         }
 
-        function shoot(p) {
-            bullets.push({
-                x: p.x*gridSize+12, y: p.y*gridSize+12,
-                vx: p.dir.x * 10, vy: p.dir.y * 10, owner: p.id
-            });
+        function startTimer() {
+            const t = setInterval(() => {
+                if(gameActive) {
+                    timeLeft--;
+                    if(timeLeft <= 0) { clearInterval(t); endGame(); }
+                }
+            }, 1000);
         }
 
-        window.onkeydown = e => {
+        function endGame() {
+            gameActive = false;
+            const winner = p1.score > p2.score ? p1 : p2;
+            document.getElementById('winner-text').innerText = winner.name + " KAZANDI!";
+            document.getElementById('end-screen').style.display = 'block';
+        }
+
+        window.onkeydown = (e) => {
             keys[e.code] = true;
-            if(e.code === 'Space' || e.code === 'Enter') {
-                if(isHost) shoot(p1);
-                else conn.send({ p2: p2, shoot: true });
-            }
+            if(!isHost && conn) conn.send({ type: 'input', keys: keys, shoot: (e.code === controls.p1.shoot) });
+            if(isHost && gameActive && e.code === controls.p1.shoot) shootBullet(p1);
         };
-        window.onkeyup = e => keys[e.code] = false;
+        window.onkeyup = (e) => {
+            keys[e.code] = false;
+            if(!isHost && conn) conn.send({ type: 'input', keys: keys, shoot: false });
+        };
 
+        function toggleScreen(id, show) { document.getElementById(id).style.display = show ? 'block' : 'none'; }
+        function listenKey(p, act, el) { 
+            el.innerText = "...";
+            window.addEventListener('keydown', function h(e) {
+                controls.p1[act] = e.code;
+                el.innerText = e.code.replace('Key','');
+                window.removeEventListener('keydown', h);
+            }, {once: true});
+        }
     </script>
 </body>
 </html>
