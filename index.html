@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaos Arena: Online Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --p1-color: #ff0055;
+            --p2-color: #00d4ff;
+            --accent: #ccff00;
+            --danger: #ff4444;
+            --bg-dark: #0a0a0c;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; margin: 0; background: radial-gradient(circle at center, #1a1a2e 0%, #0a0a0c 100%);
+            color: #e0e0e0; font-family: 'Rajdhani', sans-serif; overflow: hidden;
+        }
+
+        .overlay {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 550px; background: rgba(15, 15, 20, 0.95); backdrop-filter: blur(20px);
+            padding: 40px; border-radius: 20px; border: 1px solid var(--glass-border);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.8); text-align: center; z-index: 1000;
+            display: none;
+        }
+
+        .cyber-input {
+            width: 100%; padding: 12px 20px; margin: 10px 0;
+            background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+            border-radius: 8px; color: white; font-family: 'Rajdhani', sans-serif;
+        }
+
+        .btn {
+            padding: 12px 30px; font-size: 1rem; font-family: 'Orbitron', sans-serif;
+            background: var(--accent); color: black; border: none; border-radius: 4px;
+            cursor: pointer; font-weight: bold; margin: 10px 5px; transition: 0.3s;
+        }
+        .btn:hover { transform: translateY(-3px); box-shadow: 0 0 20px var(--accent); }
+        .btn-sec { background: transparent; color: white; border: 1px solid var(--glass-border); }
+
+        #game-container { display: flex; align-items: flex-start; gap: 20px; }
+        canvas { background-color: #050505; border: 2px solid var(--glass-border); border-radius: 12px; display: none; }
+        
+        .status-msg { color: var(--accent); font-family: 'Orbitron'; margin: 10px; font-size: 0.8rem; }
+        #peer-id-display { color: white; background: #222; padding: 5px; border-radius: 4px; user-select: all; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen" class="overlay" style="display:block">
+        <h1 style="color: var(--accent);">KAOS ARENA ONLINE</h1>
+        <input type="text" id="nickname" class="cyber-input" placeholder="Pilot İsmi">
+        
+        <div style="border: 1px solid var(--glass-border); padding: 15px; border-radius: 10px; margin-top: 10px;">
+            <button class="btn" onclick="startHost()">ODA KUR (HOST)</button>
+            <p id="host-id-area" style="display:none">ID'niz: <span id="peer-id-display">Bekleniyor...</span></p>
+        </div>
+
+        <div style="border: 1px solid var(--glass-border); padding: 15px; border-radius: 10px; margin-top: 10px;">
+            <input type="text" id="join-id" class="cyber-input" placeholder="Katılmak istediğin ID">
+            <button class="btn btn-sec" onclick="startJoin()">ODAYA KATIL</button>
+        </div>
+        <p id="conn-status" class="status-msg"></p>
+    </div>
+
+    <div id="game-ui" style="display:none">
+        <div id="timer" style="font-family: 'Orbitron'; font-size: 2rem; color: var(--accent); text-align: center;">60</div>
+        <div id="game-container">
+            <canvas id="arenaCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('arenaCanvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 25;
+        let rows = 20, cols = 30;
+        canvas.width = cols * gridSize;
+        canvas.height = rows * gridSize;
+
+        let peer, conn;
+        let isHost = false;
+        let gameActive = false;
+        let grid = Array(rows).fill().map(() => Array(cols).fill(0));
+        let walls = [], items = [], bullets = [];
+        const keys = {};
+
+        let p1 = { id: 1, name: "P1", color: '#ff0055', x: 2, y: 10, score: 0, hp: 3, dir: {x:1, y:0}, lastMove: 0, shield: false, effects: { stun: 0, ice: 0, star: 0, ghost: 0, nitro: 0, invisible: 0 } };
+        let p2 = { id: 2, name: "P2", color: '#00d4ff', x: 27, y: 10, score: 0, hp: 3, dir: {x:-1, y:0}, lastMove: 0, shield: false, effects: { stun: 0, ice: 0, star: 0, ghost: 0, nitro: 0, invisible: 0 } };
+
+        // PEERJS MODÜLLERİ
+        function startHost() {
+            isHost = true;
+            p1.name = document.getElementById('nickname').value || "Host";
+            peer = new Peer();
+            peer.on('open', id => {
+                document.getElementById('host-id-area').style.display = 'block';
+                document.getElementById('peer-id-display').innerText = id;
+                document.getElementById('conn-status').innerText = "Bağlantı bekleniyor...";
+            });
+            peer.on('connection', c => {
+                conn = c;
+                setupConnection();
+            });
+        }
+
+        function startJoin() {
+            isHost = false;
+            p2.name = document.getElementById('nickname').value || "Guest";
+            const targetId = document.getElementById('join-id').value;
+            if(!targetId) return alert("ID girin!");
+            
+            peer = new Peer();
+            peer.on('open', () => {
+                conn = peer.connect(targetId);
+                setupConnection();
+            });
+        }
+
+        function setupConnection() {
+            conn.on('open', () => {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('game-ui').style.display = 'block';
+                canvas.style.display = 'block';
+                
+                if(isHost) {
+                    generateWalls();
+                    spawnItemLoop();
+                    gameActive = true;
+                    requestAnimationFrame(gameLoop);
+                }
+                
+                conn.on('data', data => {
+                    if(isHost) {
+                        // Host, Guest'ten gelen tuşları/hareketleri alır
+                        p2.x = data.p2.x; p2.y = data.p2.y;
+                        p2.dir = data.p2.dir;
+                        if(data.shoot) shoot(p2);
+                    } else {
+                        // Guest, Host'tan gelen tüm dünyayı alır
+                        grid = data.grid;
+                        p1 = data.p1;
+                        p2 = data.p2;
+                        walls = data.walls;
+                        items = data.items;
+                        bullets = data.bullets;
+                        if(!gameActive) { gameActive = true; requestAnimationFrame(draw); }
+                    }
+                });
+            });
+        }
+
+        // OYUN MANTIĞI
+        function generateWalls() {
+            for(let i=0; i < 40; i++) {
+                walls.push({x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows)});
+            }
+        }
+
+        function gameLoop() {
+            if(!gameActive) return;
+            update();
+            draw();
+            // Host her karede veriyi Guest'e gönderir
+            conn.send({ grid, p1, p2, walls, items, bullets });
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            const now = Date.now();
+            [p1, p2].forEach(p => {
+                // Sadece Host her iki oyuncunun mantığını hesaplar veya Guest kendi verisini gönderir
+                const isLocal = (isHost && p.id === 1) || (!isHost && p.id === 2);
+                if(!isLocal) return;
+
+                if(p.effects.stun > now) return;
+
+                let speed = 110;
+                if(p.effects.nitro > now) speed = 60;
+                if(p.effects.ice > now) speed = 200;
+
+                if(now - p.lastMove > speed) {
+                    let dx = 0, dy = 0;
+                    if(isHost) {
+                        if(keys['KeyW']) dy = -1; else if(keys['KeyS']) dy = 1;
+                        if(keys['KeyA']) dx = -1; else if(keys['KeyD']) dx = 1;
+                    } else {
+                        if(keys['ArrowUp'] || keys['KeyW']) dy = -1; else if(keys['ArrowDown'] || keys['KeyS']) dy = 1;
+                        if(keys['ArrowLeft'] || keys['KeyA']) dx = -1; else if(keys['ArrowRight'] || keys['KeyD']) dx = 1;
+                    }
+
+                    if(dx !== 0 || dy !== 0) {
+                        p.dir = {x: dx, y: dy};
+                        let nx = p.x + dx, ny = p.y + dy;
+                        // Çarpışma ve Sınır Kontrolü
+                        if(nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
+                            p.x = nx; p.y = ny;
+                            if(isHost) grid[ny][nx] = p.id;
+                            p.lastMove = now;
+                        }
+                        if(!isHost) conn.send({ p2: p }); // Guest konumunu bildirir
+                    }
+                }
+            });
+
+            if(isHost) {
+                // Mermi hareketleri sadece Host'ta hesaplanır
+                bullets.forEach((b, idx) => {
+                    b.x += b.vx; b.y += b.vy;
+                    if(b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(idx, 1);
+                });
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const now = Date.now();
+
+            // Grid
+            grid.forEach((row, y) => row.forEach((cell, x) => {
+                if(cell !== 0) {
+                    ctx.fillStyle = cell === 1 ? p1.color : p2.color;
+                    ctx.globalAlpha = 0.2;
+                    ctx.fillRect(x*gridSize, y*gridSize, gridSize-1, gridSize-1);
+                }
+            }));
+
+            // Duvarlar
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = "#444";
+            walls.forEach(w => ctx.fillRect(w.x*gridSize, w.y*gridSize, gridSize-2, gridSize-2));
+
+            // Itemlar
+            items.forEach(it => {
+                ctx.fillText(getItemIcon(it.type), it.x*gridSize+5, it.y*gridSize+18);
+            });
+
+            // Mermiler
+            ctx.fillStyle = "white";
+            bullets.forEach(b => {
+                ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Oyuncular
+            [p1, p2].forEach(p => {
+                if(p.effects.invisible > now) return; // GÖRÜNMEZLİK
+                ctx.fillStyle = p.color;
+                if(p.effects.stun > now) ctx.fillStyle = "white";
+                ctx.fillRect(p.x*gridSize+2, p.y*gridSize+2, gridSize-4, gridSize-4);
+            });
+
+            if(!isHost) requestAnimationFrame(draw);
+        }
+
+        function getItemIcon(type) {
+            const icons = { star: "🌟", ice: "❄️", ghost: "👻", shield: "🛡️", nitro: "⚡", invisible: "👤" };
+            return icons[type] || "❓";
+        }
+
+        function spawnItemLoop() {
+            if(!isHost || !gameActive) return;
+            const types = ['star', 'ice', 'ghost', 'shield', 'nitro', 'invisible'];
+            items.push({
+                x: Math.floor(Math.random()*cols),
+                y: Math.floor(Math.random()*rows),
+                type: types[Math.floor(Math.random()*types.length)]
+            });
+            setTimeout(spawnItemLoop, 5000);
+        }
+
+        function shoot(p) {
+            bullets.push({
+                x: p.x*gridSize+12, y: p.y*gridSize+12,
+                vx: p.dir.x * 10, vy: p.dir.y * 10, owner: p.id
+            });
+        }
+
+        window.onkeydown = e => {
+            keys[e.code] = true;
+            if(e.code === 'Space' || e.code === 'Enter') {
+                if(isHost) shoot(p1);
+                else conn.send({ p2: p2, shoot: true });
+            }
+        };
+        window.onkeyup = e => keys[e.code] = false;
+
+    </script>
+</body>
+</html>
